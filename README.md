@@ -123,4 +123,4 @@ Este projeto está sob a licença MIT. Sinta-se à vontade para utilizá-lo como
 
 ## 👤 Autor
 
-Desenvolvido por [Seu Nome].
+Desenvolvido por Victor Manoel Soares Silva Alves.
