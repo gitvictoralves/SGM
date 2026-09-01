@@ -7,7 +7,7 @@ const SGM = (() => {
   const BASE_URL = window.location.origin;
 
   function getToken() {
-    return localStorage.getItem('sgm_token');
+    return sessionStorage.getItem('sgm_token');
   }
 
   async function request(path, options = {}) {

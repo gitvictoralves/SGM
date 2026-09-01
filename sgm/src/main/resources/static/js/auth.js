@@ -6,12 +6,12 @@ const SGMAuth = (() => {
   const USER_KEY = 'sgm_user';
 
   function saveSession({ token, email, nome }) {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify({ email, nome }));
+    sessionStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.setItem(USER_KEY, JSON.stringify({ email, nome }));
   }
 
   function getUser() {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = sessionStorage.getItem(USER_KEY);
     if (!raw) return null;
     try {
       return JSON.parse(raw);
@@ -21,12 +21,12 @@ const SGMAuth = (() => {
   }
 
   function isAuthenticated() {
-    return !!localStorage.getItem(TOKEN_KEY);
+    return !!sessionStorage.getItem(TOKEN_KEY);
   }
 
   function logout() {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
   }
 
   /** Bloqueia páginas internas: redireciona para o login se não houver sessão. */

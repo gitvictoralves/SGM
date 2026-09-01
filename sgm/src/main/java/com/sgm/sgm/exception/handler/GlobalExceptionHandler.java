@@ -2,6 +2,8 @@ package com.sgm.sgm.exception.handler;
 
 import com.sgm.sgm.dto.ErroResponse;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -13,6 +15,8 @@ import com.sgm.sgm.exception.RegraNegocioException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroResponse> tratarNaoEncontrado(RecursoNaoEncontradoException ex) {
@@ -51,6 +55,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErroResponse> tratarErroGenerico(Exception ex) {
+        logger.error("Erro inesperado ao processar requisição", ex);
+
         ErroResponse erro = new ErroResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "Erro interno",
