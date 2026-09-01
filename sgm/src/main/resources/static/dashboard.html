@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel — SGM</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">SGM</span>
+        <span class="brand-sub">Gestão de Manutenção</span>
+      </div>
+      <nav class="nav">
+        <a href="dashboard.html" class="nav-link is-active"><span class="nav-icon">▣</span> Painel</a>
+        <a href="equipamentos.html" class="nav-link"><span class="nav-icon">⚙</span> Equipamentos</a>
+        <a href="ordens.html" class="nav-link"><span class="nav-icon">☰</span> Ordens</a>
+      </nav>
+      <button class="nav-logout" id="logoutBtn" type="button">Sair</button>
+    </aside>
+
+    <div class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Painel</h1>
+          <p class="page-subtitle">Visão geral da manutenção</p>
+        </div>
+        <div class="user-chip">
+          <span class="user-avatar" id="userAvatar">·</span>
+          <span id="userName">—</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="alert alert-error" id="dashError"></div>
+
+        <section class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-value" id="statEquipamentos">—</div>
+            <div class="stat-label">Equipamentos cadastrados</div>
+          </div>
+          <div class="stat-card accent-rust">
+            <div class="stat-value" id="statAbertas">—</div>
+            <div class="stat-label">Ordens abertas</div>
+          </div>
+          <div class="stat-card accent-amber">
+            <div class="stat-value" id="statAndamento">—</div>
+            <div class="stat-label">Ordens em andamento</div>
+          </div>
+          <div class="stat-card accent-moss">
+            <div class="stat-value" id="statConcluidas">—</div>
+            <div class="stat-label">Ordens concluídas</div>
+          </div>
+        </section>
+
+        <div class="quick-actions">
+          <a href="ordem-form.html" class="btn btn-primary">+ Nova ordem de manutenção</a>
+          <a href="equipamentos.html" class="btn btn-ghost">+ Novo equipamento</a>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Ordens recentes</h2>
+            <a href="ordens.html" class="btn btn-ghost btn-sm">Ver todas</a>
+          </div>
+          <div class="table-wrap" style="border: none; border-radius: 0;">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Equipamento</th>
+                  <th>Técnico</th>
+                  <th>Status</th>
+                  <th>Abertura</th>
+                </tr>
+              </thead>
+              <tbody id="recentOrdersBody">
+                <tr class="loading-row"><td colspan="4">Carregando ordens...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    SGMAuth.requireAuth();
+    SGMAuth.wireShell();
+
+    const user = SGMAuth.getUser();
+    const avatar = document.getElementById('userAvatar');
+    if (user?.nome) avatar.textContent = user.nome.trim().charAt(0).toUpperCase();
+
+    const STATUS_LABELS_ORDEM = {
+      ABERTA: 'Aberta',
+      EM_ANDAMENTO: 'Em andamento',
+      CONCLUIDA: 'Concluída',
+    };
+
+    function formatDate(iso) {
+      if (!iso) return '—';
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function badge(status, labels) {
+      const key = (status || '').toLowerCase();
+      return `<span class="badge badge-${key}">${labels[status] || status}</span>`;
+    }
+
+    async function loadDashboard() {
+      const errorEl = document.getElementById('dashError');
+      errorEl.classList.remove('is-visible');
+
+      try {
+        const [equipamentos, ordens] = await Promise.all([
+          SGM.get('/equipamentos'),
+          SGM.get('/ordens'),
+        ]);
+
+        document.getElementById('statEquipamentos').textContent = equipamentos.length;
+        document.getElementById('statAbertas').textContent = ordens.filter((o) => o.status === 'ABERTA').length;
+        document.getElementById('statAndamento').textContent = ordens.filter((o) => o.status === 'EM_ANDAMENTO').length;
+        document.getElementById('statConcluidas').textContent = ordens.filter((o) => o.status === 'CONCLUIDA').length;
+
+        const recentes = [...ordens]
+          .sort((a, b) => new Date(b.dataAbertura) - new Date(a.dataAbertura))
+          .slice(0, 6);
+
+        const tbody = document.getElementById('recentOrdersBody');
+        if (recentes.length === 0) {
+          tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Nenhuma ordem cadastrada ainda.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = recentes.map((ordem) => `
+          <tr>
+            <td class="cell-primary">${ordem.equipamento?.nome ?? '—'}</td>
+            <td class="cell-muted">${ordem.tecnico?.nome ?? '—'}</td>
+            <td>${badge(ordem.status, STATUS_LABELS_ORDEM)}</td>
+            <td class="cell-muted">${formatDate(ordem.dataAbertura)}</td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.classList.add('is-visible');
+        document.getElementById('recentOrdersBody').innerHTML =
+          '<tr class="loading-row"><td colspan="4">Não foi possível carregar as ordens.</td></tr>';
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>
