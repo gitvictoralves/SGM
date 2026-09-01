@@ -148,18 +148,25 @@ Telas disponíveis:
 
 A comunicação com a API é feita via `fetch` (ver `static/js/api.js` e `static/js/auth.js`), incluindo o envio do token JWT no header `Authorization` após o login.
 
-### Capturas de tela
+### 📸 Capturas de tela
 
-<!--
-Adicione os prints das telas em sgm/docs/screenshots/ e referencie-os aqui, por exemplo:
+Confira algumas das principais telas da aplicação:
 
-![Login](docs/screenshots/login.png)
+#### 🔐 Login
+
+![Tela de login](docs/screenshots/login.png)
+
+#### 🔧 Listagem de equipamentos
+
 ![Listagem de equipamentos](docs/screenshots/equipamentos.png)
-![Listagem de ordens](docs/screenshots/ordens.png)
-![Abertura de ordem](docs/screenshots/ordem-form.png)
--->
 
-_Prints em breve._
+#### 📋 Listagem de ordens de serviço
+
+![Listagem de ordens de serviço](docs/screenshots/ordens.png)
+
+#### 📝 Abertura de ordem de serviço
+
+![Abertura de ordem de serviço](docs/screenshots/ordem-form.png)
 
 ## 📌 Estrutura do Projeto
 
