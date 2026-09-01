@@ -23,7 +23,7 @@ public class Equipamento {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Tecnico status;
+    private StatusEquipamento status;
 
     public Equipamento() {}
 
@@ -40,6 +40,6 @@ public class Equipamento {
     public String getDescricao() { return descricao; }
     public void setDescricao(String descricao) { this.descricao = descricao; }
 
-    public Tecnico getStatus() { return status; }
-    public void setStatus(Tecnico status) { this.status = status; }
+    public StatusEquipamento getStatus() { return status; }
+    public void setStatus(StatusEquipamento status) { this.status = status; }
 }
