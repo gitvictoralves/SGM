@@ -4,6 +4,7 @@ import com.sgm.sgm.model.Equipamento;
 import com.sgm.sgm.repository.EquipamentoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sgm.sgm.exception.RecursoNaoEncontradoException;
 
 import java.util.List;
 
@@ -19,7 +20,7 @@ public class EquipamentoService {
 
     public Equipamento buscarPorId(Long id) {
         return equipamentoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Equipamento não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Equipamento não encontrado"));
     }
 
     public Equipamento salvar(Equipamento equipamento) {

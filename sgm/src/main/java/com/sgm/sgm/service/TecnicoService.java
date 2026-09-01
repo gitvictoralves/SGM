@@ -4,6 +4,7 @@ import com.sgm.sgm.model.Tecnico;
 import com.sgm.sgm.repository.TecnicoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sgm.sgm.exception.RecursoNaoEncontradoException;
 
 import java.util.List;
 
@@ -19,7 +20,7 @@ public class TecnicoService {
 
     public Tecnico buscarPorId(Long id) {
         return tecnicoRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Técnico não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Técnico não encontrado"));
     }
 
     public Tecnico salvar(Tecnico tecnico) {

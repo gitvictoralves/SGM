@@ -8,6 +8,8 @@ import com.sgm.sgm.repository.OrdemManutencaoRepository;
 import com.sgm.sgm.repository.TecnicoRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.sgm.sgm.exception.RecursoNaoEncontradoException;
+import com.sgm.sgm.exception.RegraNegocioException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,22 +35,22 @@ public class OrdemManutencaoService {
 
     public OrdemManutencao buscarPorId(Long id) {
         return ordemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Ordem de manutenção não encontrada"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Ordem de manutenção não encontrada"));
     }
 
     public OrdemManutencao abrir(NovaOrdemRequest request) {
         Equipamento equipamento = equipamentoRepository.findById(request.getEquipamentoId())
-                .orElseThrow(() -> new RuntimeException("Equipamento não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Equipamento não encontrado"));
 
         Tecnico tecnico = tecnicoRepository.findById(request.getTecnicoId())
-                .orElseThrow(() -> new RuntimeException("Técnico não encontrado"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Técnico não encontrado"));
 
         // Regra de negócio: não permitir ordem duplicada para o mesmo equipamento
         List<OrdemManutencao> ordensAbertas = ordemRepository
                 .findByEquipamentoIdAndStatus(equipamento.getId(), StatusOrdem.ABERTA);
 
         if (!ordensAbertas.isEmpty()) {
-            throw new IllegalStateException("Já existe uma ordem aberta para este equipamento");
+            throw new RegraNegocioException("Já existe uma ordem aberta para este equipamento");
         }
 
         OrdemManutencao ordem = new OrdemManutencao();
