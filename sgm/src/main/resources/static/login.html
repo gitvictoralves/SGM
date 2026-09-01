@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrar — SGM</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="login-screen">
+    <section class="login-brand">
+      <div>
+        <span class="login-brand-mark">SGM</span>
+        <p class="login-brand-tag">Sistema de Gestão de Manutenção de equipamentos, ordens e técnicos.</p>
+      </div>
+      <span class="login-brand-foot">Acesso restrito à equipe de manutenção</span>
+    </section>
+
+    <section class="login-panel">
+      <div class="login-card">
+        <div class="login-tabs">
+          <button type="button" class="login-tab is-active" id="tabLogin">Entrar</button>
+          <button type="button" class="login-tab" id="tabCadastro">Criar conta</button>
+        </div>
+
+        <div id="paneLogin">
+          <h1>Bem-vindo de volta</h1>
+          <p class="lead">Entre com seu e-mail e senha para acessar o painel.</p>
+
+          <div class="alert alert-error" id="loginError"></div>
+          <div class="alert alert-success" id="loginSuccess"></div>
+
+          <form class="login-form is-active" id="loginForm" novalidate>
+            <div class="field">
+              <label for="loginEmail">E-mail</label>
+              <input type="email" id="loginEmail" name="email" autocomplete="username" required />
+            </div>
+            <div class="field">
+              <label for="loginSenha">Senha</label>
+              <input type="password" id="loginSenha" name="senha" autocomplete="current-password" required />
+            </div>
+            <button type="submit" class="btn btn-primary" id="loginSubmit">Entrar</button>
+          </form>
+        </div>
+
+        <div id="paneCadastro" style="display: none;">
+          <h1>Criar conta</h1>
+          <p class="lead">Cadastre-se para acessar o sistema de gestão de manutenção.</p>
+
+          <div class="alert alert-error" id="cadastroError"></div>
+
+          <form class="login-form is-active" id="cadastroForm" novalidate>
+            <div class="field">
+              <label for="cadastroNome">Nome</label>
+              <input type="text" id="cadastroNome" name="nome" autocomplete="name" required />
+            </div>
+            <div class="field">
+              <label for="cadastroEmail">E-mail</label>
+              <input type="email" id="cadastroEmail" name="email" autocomplete="email" required />
+            </div>
+            <div class="field">
+              <label for="cadastroSenha">Senha</label>
+              <input type="password" id="cadastroSenha" name="senha" autocomplete="new-password" required />
+            </div>
+            <button type="submit" class="btn btn-primary" id="cadastroSubmit">Criar conta</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Se já existe uma sessão, vai direto para o painel.
+    if (SGMAuth.isAuthenticated()) {
+      window.location.href = 'dashboard.html';
+    }
+
+    const tabLogin = document.getElementById('tabLogin');
+    const tabCadastro = document.getElementById('tabCadastro');
+    const paneLogin = document.getElementById('paneLogin');
+    const paneCadastro = document.getElementById('paneCadastro');
+
+    function showTab(tab) {
+      const isLogin = tab === 'login';
+      tabLogin.classList.toggle('is-active', isLogin);
+      tabCadastro.classList.toggle('is-active', !isLogin);
+      paneLogin.style.display = isLogin ? 'block' : 'none';
+      paneCadastro.style.display = isLogin ? 'none' : 'block';
+    }
+
+    tabLogin.addEventListener('click', () => showTab('login'));
+    tabCadastro.addEventListener('click', () => showTab('cadastro'));
+
+    function setAlert(el, message) {
+      el.textContent = message;
+      el.classList.toggle('is-visible', !!message);
+    }
+
+    // ---------- Login ----------
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const loginSuccess = document.getElementById('loginSuccess');
+    const loginSubmit = document.getElementById('loginSubmit');
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setAlert(loginError, '');
+
+      const email = document.getElementById('loginEmail').value.trim();
+      const senha = document.getElementById('loginSenha').value;
+
+      loginSubmit.disabled = true;
+      loginSubmit.textContent = 'Entrando...';
+
+      try {
+        const response = await SGM.post('/auth/login', { email, senha });
+        SGMAuth.saveSession(response);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        setAlert(loginError, err.message);
+      } finally {
+        loginSubmit.disabled = false;
+        loginSubmit.textContent = 'Entrar';
+      }
+    });
+
+    // ---------- Cadastro ----------
+    const cadastroForm = document.getElementById('cadastroForm');
+    const cadastroError = document.getElementById('cadastroError');
+    const cadastroSubmit = document.getElementById('cadastroSubmit');
+
+    cadastroForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      setAlert(cadastroError, '');
+
+      const nome = document.getElementById('cadastroNome').value.trim();
+      const email = document.getElementById('cadastroEmail').value.trim();
+      const senha = document.getElementById('cadastroSenha').value;
+
+      cadastroSubmit.disabled = true;
+      cadastroSubmit.textContent = 'Criando...';
+
+      try {
+        await SGM.post('/auth/cadastro', { nome, email, senha });
+        cadastroForm.reset();
+        showTab('login');
+        document.getElementById('loginEmail').value = email;
+        setAlert(loginSuccess, 'Conta criada com sucesso. Faça login para continuar.');
+      } catch (err) {
+        setAlert(cadastroError, err.message);
+      } finally {
+        cadastroSubmit.disabled = false;
+        cadastroSubmit.textContent = 'Criar conta';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ordens de manutenção — SGM</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">SGM</span>
+        <span class="brand-sub">Gestão de Manutenção</span>
+      </div>
+      <nav class="nav">
+        <a href="dashboard.html" class="nav-link"><span class="nav-icon">▣</span> Painel</a>
+        <a href="equipamentos.html" class="nav-link"><span class="nav-icon">⚙</span> Equipamentos</a>
+        <a href="ordens.html" class="nav-link is-active"><span class="nav-icon">☰</span> Ordens</a>
+      </nav>
+      <button class="nav-logout" id="logoutBtn" type="button">Sair</button>
+    </aside>
+
+    <div class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Ordens de manutenção</h1>
+          <p class="page-subtitle">Acompanhamento das ordens abertas, em andamento e concluídas</p>
+        </div>
+        <div class="user-chip">
+          <span id="userName">—</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="alert alert-error" id="listError"></div>
+
+        <div class="toolbar">
+          <select class="select-input" id="statusFilter">
+            <option value="">Todos os status</option>
+            <option value="ABERTA">Aberta</option>
+            <option value="EM_ANDAMENTO">Em andamento</option>
+            <option value="CONCLUIDA">Concluída</option>
+          </select>
+          <span class="spacer"></span>
+          <a href="ordem-form.html" class="btn btn-primary">+ Nova ordem</a>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Equipamento</th>
+                <th>Técnico</th>
+                <th>Status</th>
+                <th>Abertura</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr class="loading-row"><td colspan="5">Carregando ordens...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: histórico -->
+  <div class="modal-overlay" id="historicoOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Histórico da ordem</h3>
+        <button class="modal-close" type="button" id="historicoClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="historicoContexto" class="page-subtitle" style="margin-bottom: 1rem;"></p>
+        <ul class="timeline" id="historicoLista">
+          <li>Carregando histórico...</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="historicoFechar">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: atualizar status -->
+  <div class="modal-overlay" id="statusOverlay">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>Atualizar status</h3>
+        <button class="modal-close" type="button" id="statusClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-error" id="statusError"></div>
+        <div class="field">
+          <label for="novoStatus">Novo status</label>
+          <select id="novoStatus"></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="statusCancel">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="statusConfirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    SGMAuth.requireAuth();
+    SGMAuth.wireShell();
+
+    const STATUS_LABELS = {
+      ABERTA: 'Aberta',
+      EM_ANDAMENTO: 'Em andamento',
+      CONCLUIDA: 'Concluída',
+    };
+
+    // Próximos status possíveis a partir do status atual (fluxo linear da ordem).
+    const NEXT_STATUS = {
+      ABERTA: ['EM_ANDAMENTO', 'CONCLUIDA'],
+      EM_ANDAMENTO: ['CONCLUIDA', 'ABERTA'],
+      CONCLUIDA: ['EM_ANDAMENTO'],
+    };
+
+    let ordens = [];
+    let statusOrdemId = null;
+
+    const tableBody = document.getElementById('tableBody');
+    const listError = document.getElementById('listError');
+    const statusFilter = document.getElementById('statusFilter');
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.toggle('is-error', isError);
+      toast.classList.add('is-visible');
+      setTimeout(() => toast.classList.remove('is-visible'), 2600);
+    }
+
+    function badge(status) {
+      const key = (status || '').toLowerCase();
+      return `<span class="badge badge-${key}">${STATUS_LABELS[status] || status}</span>`;
+    }
+
+    function formatDateTime(iso) {
+      if (!iso) return '—';
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return '—';
+      return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function render() {
+      const status = statusFilter.value;
+      const filtradas = ordens.filter((o) => !status || o.status === status);
+
+      if (filtradas.length === 0) {
+        tableBody.innerHTML = `
+          <tr class="loading-row">
+            <td colspan="5">
+              <div class="empty-state">
+                <strong>Nenhuma ordem encontrada</strong>
+                Ajuste o filtro ou abra uma nova ordem de manutenção.
+              </div>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tableBody.innerHTML = filtradas.map((ordem) => `
+        <tr>
+          <td class="cell-primary">${ordem.equipamento?.nome ?? '—'}</td>
+          <td class="cell-muted">${ordem.tecnico?.nome ?? '—'}</td>
+          <td>${badge(ordem.status)}</td>
+          <td class="cell-muted">${formatDateTime(ordem.dataAbertura)}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" data-action="historico" data-id="${ordem.id}">Histórico</button>
+              <button class="icon-btn" data-action="status" data-id="${ordem.id}">Atualizar status</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadOrdens() {
+      listError.classList.remove('is-visible');
+      try {
+        ordens = await SGM.get('/ordens');
+        render();
+      } catch (err) {
+        listError.textContent = err.message;
+        listError.classList.add('is-visible');
+        tableBody.innerHTML = '<tr class="loading-row"><td colspan="5">Não foi possível carregar as ordens.</td></tr>';
+      }
+    }
+
+    statusFilter.addEventListener('change', render);
+
+    // ---------- Histórico ----------
+    const historicoOverlay = document.getElementById('historicoOverlay');
+    const historicoLista = document.getElementById('historicoLista');
+    const historicoContexto = document.getElementById('historicoContexto');
+
+    async function openHistorico(ordem) {
+      historicoContexto.textContent = `${ordem.equipamento?.nome ?? '—'} · técnico ${ordem.tecnico?.nome ?? '—'}`;
+      historicoLista.innerHTML = '<li>Carregando histórico...</li>';
+      historicoOverlay.classList.add('is-open');
+
+      try {
+        const historico = await SGM.get(`/ordens/${ordem.id}/historico`);
+        if (historico.length === 0) {
+          historicoLista.innerHTML = '<li>Nenhuma alteração de status registrada ainda.</li>';
+          return;
+        }
+        historicoLista.innerHTML = historico.map((h) => `
+          <li>
+            <div class="timeline-title">${STATUS_LABELS[h.statusAnterior] || h.statusAnterior} → ${STATUS_LABELS[h.statusNovo] || h.statusNovo}</div>
+            <div class="timeline-date">${formatDateTime(h.dataAlteracao)}</div>
+          </li>
+        `).join('');
+      } catch (err) {
+        historicoLista.innerHTML = `<li>Não foi possível carregar o histórico: ${err.message}</li>`;
+      }
+    }
+
+    document.getElementById('historicoClose').addEventListener('click', () => historicoOverlay.classList.remove('is-open'));
+    document.getElementById('historicoFechar').addEventListener('click', () => historicoOverlay.classList.remove('is-open'));
+    historicoOverlay.addEventListener('click', (e) => { if (e.target === historicoOverlay) historicoOverlay.classList.remove('is-open'); });
+
+    // ---------- Atualizar status ----------
+    const statusOverlay = document.getElementById('statusOverlay');
+    const novoStatusSelect = document.getElementById('novoStatus');
+    const statusError = document.getElementById('statusError');
+    const statusConfirm = document.getElementById('statusConfirm');
+
+    function openStatus(ordem) {
+      statusOrdemId = ordem.id;
+      statusError.classList.remove('is-visible');
+      const opcoes = NEXT_STATUS[ordem.status] || [];
+      novoStatusSelect.innerHTML = opcoes.map((s) => `<option value="${s}">${STATUS_LABELS[s]}</option>`).join('');
+      statusOverlay.classList.add('is-open');
+    }
+
+    function closeStatus() {
+      statusOverlay.classList.remove('is-open');
+      statusOrdemId = null;
+    }
+
+    document.getElementById('statusClose').addEventListener('click', closeStatus);
+    document.getElementById('statusCancel').addEventListener('click', closeStatus);
+    statusOverlay.addEventListener('click', (e) => { if (e.target === statusOverlay) closeStatus(); });
+
+    statusConfirm.addEventListener('click', async () => {
+      if (!statusOrdemId) return;
+      statusError.classList.remove('is-visible');
+      statusConfirm.disabled = true;
+
+      try {
+        await SGM.patch(`/ordens/${statusOrdemId}/status`, { status: novoStatusSelect.value });
+        showToast('Status atualizado.');
+        closeStatus();
+        await loadOrdens();
+      } catch (err) {
+        statusError.textContent = err.message;
+        statusError.classList.add('is-visible');
+      } finally {
+        statusConfirm.disabled = false;
+      }
+    });
+
+    tableBody.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = Number(btn.dataset.id);
+      const ordem = ordens.find((o) => o.id === id);
+      if (!ordem) return;
+
+      if (btn.dataset.action === 'historico') openHistorico(ordem);
+      if (btn.dataset.action === 'status') openStatus(ordem);
+    });
+
+    loadOrdens();
+  </script>
+</body>
+</html>

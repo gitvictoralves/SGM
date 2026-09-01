@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nova ordem — SGM</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">SGM</span>
+        <span class="brand-sub">Gestão de Manutenção</span>
+      </div>
+      <nav class="nav">
+        <a href="dashboard.html" class="nav-link"><span class="nav-icon">▣</span> Painel</a>
+        <a href="equipamentos.html" class="nav-link"><span class="nav-icon">⚙</span> Equipamentos</a>
+        <a href="ordens.html" class="nav-link is-active"><span class="nav-icon">☰</span> Ordens</a>
+      </nav>
+      <button class="nav-logout" id="logoutBtn" type="button">Sair</button>
+    </aside>
+
+    <div class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Nova ordem de manutenção</h1>
+          <p class="page-subtitle">Registrar uma solicitação de manutenção para um equipamento</p>
+        </div>
+        <div class="user-chip">
+          <span id="userName">—</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="card" style="max-width: 620px;">
+          <div class="card-pad">
+            <div class="alert alert-error" id="formError"></div>
+
+            <form id="ordemForm" novalidate>
+              <div class="form-grid">
+                <div class="field" id="fieldEquipamento">
+                  <label for="equipamentoId">Equipamento</label>
+                  <select id="equipamentoId" name="equipamentoId" required>
+                    <option value="">Selecione um equipamento</option>
+                  </select>
+                </div>
+
+                <div class="field" id="fieldTecnico">
+                  <label for="tecnicoId">Técnico responsável</label>
+                  <select id="tecnicoId" name="tecnicoId" required>
+                    <option value="">Selecione um técnico</option>
+                  </select>
+                </div>
+
+                <div class="field" id="fieldDescricao">
+                  <label for="descricaoProblema">Descrição do problema</label>
+                  <textarea id="descricaoProblema" name="descricaoProblema" placeholder="Descreva o problema relatado no equipamento" required></textarea>
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <a href="ordens.html" class="btn btn-ghost">Cancelar</a>
+                <button type="submit" class="btn btn-primary" id="formSubmit">Abrir ordem</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    SGMAuth.requireAuth();
+    SGMAuth.wireShell();
+
+    const equipamentoSelect = document.getElementById('equipamentoId');
+    const tecnicoSelect = document.getElementById('tecnicoId');
+    const formError = document.getElementById('formError');
+    const formSubmit = document.getElementById('formSubmit');
+
+    async function loadOpcoes() {
+      try {
+        const [equipamentos, tecnicos] = await Promise.all([
+          SGM.get('/equipamentos'),
+          SGM.get('/tecnicos'),
+        ]);
+
+        equipamentoSelect.innerHTML = '<option value="">Selecione um equipamento</option>' +
+          equipamentos.map((eq) => `<option value="${eq.id}">${eq.nome} (${eq.codigo})</option>`).join('');
+
+        tecnicoSelect.innerHTML = '<option value="">Selecione um técnico</option>' +
+          tecnicos.map((t) => `<option value="${t.id}">${t.nome} — ${t.especialidade}</option>`).join('');
+
+        if (tecnicos.length === 0) {
+          formError.textContent = 'Nenhum técnico cadastrado. Cadastre um técnico pela API/Swagger antes de abrir uma ordem.';
+          formError.classList.add('is-visible');
+        }
+      } catch (err) {
+        formError.textContent = err.message;
+        formError.classList.add('is-visible');
+      }
+    }
+
+    document.getElementById('ordemForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      formError.classList.remove('is-visible');
+
+      const payload = {
+        equipamentoId: Number(equipamentoSelect.value) || null,
+        tecnicoId: Number(tecnicoSelect.value) || null,
+        descricaoProblema: document.getElementById('descricaoProblema').value.trim(),
+      };
+
+      if (!payload.equipamentoId || !payload.tecnicoId || !payload.descricaoProblema) {
+        formError.textContent = 'Preencha o equipamento, o técnico e a descrição do problema.';
+        formError.classList.add('is-visible');
+        return;
+      }
+
+      formSubmit.disabled = true;
+      formSubmit.textContent = 'Abrindo...';
+
+      try {
+        await SGM.post('/ordens', payload);
+        window.location.href = 'ordens.html';
+      } catch (err) {
+        formError.textContent = err.message;
+        formError.classList.add('is-visible');
+        formSubmit.disabled = false;
+        formSubmit.textContent = 'Abrir ordem';
+      }
+    });
+
+    loadOpcoes();
+  </script>
+</body>
+</html>

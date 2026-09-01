@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Equipamentos — SGM</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">SGM</span>
+        <span class="brand-sub">Gestão de Manutenção</span>
+      </div>
+      <nav class="nav">
+        <a href="dashboard.html" class="nav-link"><span class="nav-icon">▣</span> Painel</a>
+        <a href="equipamentos.html" class="nav-link is-active"><span class="nav-icon">⚙</span> Equipamentos</a>
+        <a href="ordens.html" class="nav-link"><span class="nav-icon">☰</span> Ordens</a>
+      </nav>
+      <button class="nav-logout" id="logoutBtn" type="button">Sair</button>
+    </aside>
+
+    <div class="content">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Equipamentos</h1>
+          <p class="page-subtitle">Cadastro e status dos equipamentos</p>
+        </div>
+        <div class="user-chip">
+          <span id="userName">—</span>
+        </div>
+      </header>
+
+      <main class="main">
+        <div class="alert alert-error" id="listError"></div>
+
+        <div class="toolbar">
+          <input type="search" class="search-input" id="searchInput" placeholder="Buscar por nome ou código" />
+          <select class="select-input" id="statusFilter">
+            <option value="">Todos os status</option>
+            <option value="ATIVO">Ativo</option>
+            <option value="EM_MANUTENCAO">Em manutenção</option>
+            <option value="INATIVO">Inativo</option>
+          </select>
+          <span class="spacer"></span>
+          <button class="btn btn-primary" id="btnNovo" type="button">+ Novo equipamento</button>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Código</th>
+                <th>Status</th>
+                <th>Descrição</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr class="loading-row"><td colspan="5">Carregando equipamentos...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: novo / editar equipamento -->
+  <div class="modal-overlay" id="formOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="formTitle">Novo equipamento</h3>
+        <button class="modal-close" type="button" id="formClose">&times;</button>
+      </div>
+      <form id="equipamentoForm" novalidate>
+        <div class="modal-body">
+          <div class="alert alert-error" id="formError"></div>
+          <div class="form-grid">
+            <input type="hidden" id="equipamentoId" />
+            <div class="field">
+              <label for="nome">Nome</label>
+              <input type="text" id="nome" name="nome" required />
+            </div>
+            <div class="field">
+              <label for="codigo">Código</label>
+              <input type="text" id="codigo" name="codigo" placeholder="Ex.: EQP-014" required />
+            </div>
+            <div class="field">
+              <label for="status">Status</label>
+              <select id="status" name="status" required>
+                <option value="ATIVO">Ativo</option>
+                <option value="EM_MANUTENCAO">Em manutenção</option>
+                <option value="INATIVO">Inativo</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="descricao">Descrição <span class="hint">(opcional)</span></label>
+              <textarea id="descricao" name="descricao"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="formCancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="formSubmit">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: confirmar exclusão -->
+  <div class="modal-overlay" id="deleteOverlay">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>Excluir equipamento</h3>
+        <button class="modal-close" type="button" id="deleteClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="deleteMessage">Tem certeza de que deseja excluir este equipamento? Essa ação não pode ser desfeita.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="deleteCancel">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="deleteConfirm">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/api.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    SGMAuth.requireAuth();
+    SGMAuth.wireShell();
+
+    const STATUS_LABELS = {
+      ATIVO: 'Ativo',
+      EM_MANUTENCAO: 'Em manutenção',
+      INATIVO: 'Inativo',
+    };
+
+    let equipamentos = [];
+    let deletingId = null;
+
+    const tableBody = document.getElementById('tableBody');
+    const listError = document.getElementById('listError');
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.toggle('is-error', isError);
+      toast.classList.add('is-visible');
+      setTimeout(() => toast.classList.remove('is-visible'), 2600);
+    }
+
+    function badge(status) {
+      const key = (status || '').toLowerCase();
+      return `<span class="badge badge-${key}">${STATUS_LABELS[status] || status}</span>`;
+    }
+
+    function render() {
+      const term = searchInput.value.trim().toLowerCase();
+      const status = statusFilter.value;
+
+      const filtrados = equipamentos.filter((eq) => {
+        const matchesTerm = !term || eq.nome.toLowerCase().includes(term) || eq.codigo.toLowerCase().includes(term);
+        const matchesStatus = !status || eq.status === status;
+        return matchesTerm && matchesStatus;
+      });
+
+      if (filtrados.length === 0) {
+        tableBody.innerHTML = `
+          <tr class="loading-row">
+            <td colspan="5">
+              <div class="empty-state">
+                <strong>Nenhum equipamento encontrado</strong>
+                Ajuste os filtros ou cadastre um novo equipamento.
+              </div>
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tableBody.innerHTML = filtrados.map((eq) => `
+        <tr>
+          <td class="cell-primary">${eq.nome}</td>
+          <td class="cell-muted">${eq.codigo}</td>
+          <td>${badge(eq.status)}</td>
+          <td class="cell-muted">${eq.descricao || '—'}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" data-action="editar" data-id="${eq.id}">Editar</button>
+              <button class="icon-btn danger" data-action="excluir" data-id="${eq.id}">Excluir</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadEquipamentos() {
+      listError.classList.remove('is-visible');
+      try {
+        equipamentos = await SGM.get('/equipamentos');
+        render();
+      } catch (err) {
+        listError.textContent = err.message;
+        listError.classList.add('is-visible');
+        tableBody.innerHTML = '<tr class="loading-row"><td colspan="5">Não foi possível carregar os equipamentos.</td></tr>';
+      }
+    }
+
+    searchInput.addEventListener('input', render);
+    statusFilter.addEventListener('change', render);
+
+    // ---------- Modal de formulário ----------
+    const formOverlay = document.getElementById('formOverlay');
+    const equipamentoForm = document.getElementById('equipamentoForm');
+    const formTitle = document.getElementById('formTitle');
+    const formError = document.getElementById('formError');
+    const formSubmit = document.getElementById('formSubmit');
+
+    function openForm(equipamento = null) {
+      equipamentoForm.reset();
+      formError.classList.remove('is-visible');
+      document.getElementById('equipamentoId').value = equipamento?.id || '';
+      document.getElementById('nome').value = equipamento?.nome || '';
+      document.getElementById('codigo').value = equipamento?.codigo || '';
+      document.getElementById('status').value = equipamento?.status || 'ATIVO';
+      document.getElementById('descricao').value = equipamento?.descricao || '';
+      formTitle.textContent = equipamento ? 'Editar equipamento' : 'Novo equipamento';
+      formOverlay.classList.add('is-open');
+      document.getElementById('nome').focus();
+    }
+
+    function closeForm() {
+      formOverlay.classList.remove('is-open');
+    }
+
+    document.getElementById('btnNovo').addEventListener('click', () => openForm());
+    document.getElementById('formClose').addEventListener('click', closeForm);
+    document.getElementById('formCancel').addEventListener('click', closeForm);
+    formOverlay.addEventListener('click', (e) => { if (e.target === formOverlay) closeForm(); });
+
+    equipamentoForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      formError.classList.remove('is-visible');
+
+      const id = document.getElementById('equipamentoId').value;
+      const payload = {
+        nome: document.getElementById('nome').value.trim(),
+        codigo: document.getElementById('codigo').value.trim(),
+        status: document.getElementById('status').value,
+        descricao: document.getElementById('descricao').value.trim(),
+      };
+
+      formSubmit.disabled = true;
+      formSubmit.textContent = 'Salvando...';
+
+      try {
+        if (id) {
+          await SGM.put(`/equipamentos/${id}`, payload);
+          showToast('Equipamento atualizado.');
+        } else {
+          await SGM.post('/equipamentos', payload);
+          showToast('Equipamento cadastrado.');
+        }
+        closeForm();
+        await loadEquipamentos();
+      } catch (err) {
+        formError.textContent = err.message;
+        formError.classList.add('is-visible');
+      } finally {
+        formSubmit.disabled = false;
+        formSubmit.textContent = 'Salvar';
+      }
+    });
+
+    // ---------- Modal de exclusão ----------
+    const deleteOverlay = document.getElementById('deleteOverlay');
+
+    function openDelete(id, nome) {
+      deletingId = id;
+      document.getElementById('deleteMessage').textContent =
+        `Tem certeza de que deseja excluir "${nome}"? Essa ação não pode ser desfeita.`;
+      deleteOverlay.classList.add('is-open');
+    }
+
+    function closeDelete() {
+      deleteOverlay.classList.remove('is-open');
+      deletingId = null;
+    }
+
+    document.getElementById('deleteClose').addEventListener('click', closeDelete);
+    document.getElementById('deleteCancel').addEventListener('click', closeDelete);
+    deleteOverlay.addEventListener('click', (e) => { if (e.target === deleteOverlay) closeDelete(); });
+
+    document.getElementById('deleteConfirm').addEventListener('click', async () => {
+      if (!deletingId) return;
+      try {
+        await SGM.del(`/equipamentos/${deletingId}`);
+        showToast('Equipamento excluído.');
+        closeDelete();
+        await loadEquipamentos();
+      } catch (err) {
+        showToast(err.message, true);
+        closeDelete();
+      }
+    });
+
+    tableBody.addEventListener('click', (event) => {
+      const btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      const id = Number(btn.dataset.id);
+      const equipamento = equipamentos.find((eq) => eq.id === id);
+      if (!equipamento) return;
+
+      if (btn.dataset.action === 'editar') openForm(equipamento);
+      if (btn.dataset.action === 'excluir') openDelete(id, equipamento.nome);
+    });
+
+    loadEquipamentos();
+  </script>
+</body>
+</html>
